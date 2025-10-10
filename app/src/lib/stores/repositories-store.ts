@@ -31,6 +31,9 @@ import { shallowEquals } from '../equality'
 
 type AddRepositoryOptions = {
   missing?: boolean
+  useQueryForPathInstead?: boolean
+  parentDirectoryPath?: string
+  queryForPath?: string
 }
 
 /** The store for local repositories. */
@@ -152,7 +155,10 @@ export class RepositoriesStore extends TypedBaseStore<
       repo.missing,
       repo.alias,
       repo.workflowPreferences,
-      repo.isTutorialRepository
+      repo.useQueryForPathInstead ?? false,
+      repo.parentDirectoryPath ?? '',
+      repo.queryForPath ?? '',
+      repo.isTutorialRepository ?? false
     )
   }
 
@@ -252,6 +258,9 @@ export class RepositoriesStore extends TypedBaseStore<
           missing: opts?.missing ?? false,
           lastStashCheckDate: null,
           alias: null,
+          useQueryForPathInstead: opts?.useQueryForPathInstead ?? false,
+          parentDirectoryPath: opts?.parentDirectoryPath ?? null,
+          queryForPath: opts?.queryForPath ?? null,
         }
         const id = await this.db.repositories.add(dbRepo)
         return this.toRepository({ id, ...dbRepo })

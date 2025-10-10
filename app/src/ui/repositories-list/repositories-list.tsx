@@ -127,10 +127,10 @@ export class RepositoriesList extends React.Component<
       repositories === null
         ? []
         : groupRepositories(
-            repositories,
-            localRepositoryStateLookup,
-            recentRepositories
-          )
+          repositories,
+          localRepositoryStateLookup,
+          recentRepositories
+        )
   )
 
   /**
@@ -204,6 +204,10 @@ export class RepositoriesList extends React.Component<
     const ahead = aheadBehind?.ahead ?? 0
     const behind = aheadBehind?.behind ?? 0
 
+    const useQueryForPathInstead = repository instanceof Repository && repository.useQueryForPathInstead
+    const parentDirectoryPath = useQueryForPathInstead ? repository.parentDirectoryPath : null
+    const queryForPath = useQueryForPathInstead ? repository.queryForPath : null
+
     return (
       <div className="repository-list-item-tooltip list-item-tooltip">
         <div>
@@ -215,6 +219,12 @@ export class RepositoriesList extends React.Component<
           <div className="label">Path: </div>
           {repository.path}
         </div>
+        {useQueryForPathInstead && !!parentDirectoryPath && !!queryForPath && (
+          <>
+            <div>Parent Directory: {parentDirectoryPath}</div>
+            <div>Query: {queryForPath}</div>
+          </>
+        )}
         {aheadBehindTooltip && (
           <div>
             <div className="label">
@@ -312,8 +322,8 @@ export class RepositoriesList extends React.Component<
         IFilterListGroup<IRepositoryListItem, RepositoryListGroup>
       >
     ) =>
-    (group: number) =>
-      this.getGroupLabel(groups[group].identifier)
+      (group: number) =>
+        this.getGroupLabel(groups[group].identifier)
 
   public render() {
     const groups = this.getRepositoryGroups(

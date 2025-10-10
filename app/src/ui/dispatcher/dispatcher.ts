@@ -165,9 +165,14 @@ export class Dispatcher {
    * this will post an error to that affect.
    */
   public addRepositories(
-    paths: ReadonlyArray<string>
+    paths: ReadonlyArray<string>,
+    settings?: {
+      useQueryForPathInstead: boolean
+      parentDirectoryPath: string
+      queryForPath: string
+    }
   ): Promise<ReadonlyArray<Repository>> {
-    return this.appStore._addRepositories(paths)
+    return this.appStore._addRepositories(paths, settings)
   }
 
   /**

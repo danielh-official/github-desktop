@@ -52,6 +52,9 @@ export interface IDatabaseRepository {
   readonly path: string
   readonly alias: string | null
   readonly missing: boolean
+  readonly parentDirectoryPath?: string | null
+  readonly queryForPath?: string | null
+  readonly useQueryForPathInstead?: boolean
 
   /** The last time the stash entries were checked for the repository */
   readonly lastStashCheckDate?: number | null

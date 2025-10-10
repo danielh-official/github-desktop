@@ -65,6 +65,16 @@
     .alias {
       font-style: italic;
     }
+
+    .query::after {
+      content: 'Q';
+      font-size: var(--font-size-sm);
+      line-height: 1;
+      border: 1px solid var(--text-secondary-color);
+      border-radius: var(--border-radius);
+      padding: 0 2px;
+      margin-left: 10px;
+    }
   }
 
   .filter-list-group-header {

@@ -16,6 +16,9 @@ import { showOpenDialog } from '../main-process-proxy'
 import { Ref } from '../lib/ref'
 import { InputError } from '../lib/input-description/input-error'
 import { IAccessibleMessage } from '../../models/accessible-message'
+import { Checkbox, CheckboxValue } from '../lib/checkbox'
+import { readdir, stat } from 'fs/promises'
+import { existsSync } from 'fs'
 
 interface IAddExistingRepositoryProps {
   readonly dispatcher: Dispatcher
@@ -29,6 +32,9 @@ interface IAddExistingRepositoryProps {
 
 interface IAddExistingRepositoryState {
   readonly path: string
+  readonly useQueryForPathInstead: boolean
+  readonly queryForPath: string
+  readonly parentDirectoryPath: string
 
   /**
    * Indicates whether or not to render a warning message about the entered path
@@ -52,6 +58,10 @@ export class AddExistingRepository extends React.Component<
 > {
   private pathTextBoxRef = React.createRef<TextBox>()
 
+  private queryForPathTextBoxRef = React.createRef<TextBox>()
+
+  private parentDirectoryPathTextBoxRef = React.createRef<TextBox>()
+
   public constructor(props: IAddExistingRepositoryProps) {
     super(props)
 
@@ -63,6 +73,9 @@ export class AddExistingRepository extends React.Component<
       isRepositoryBare: false,
       isRepositoryUnsafe: false,
       isTrustingRepository: false,
+      useQueryForPathInstead: false,
+      parentDirectoryPath: '',
+      queryForPath: '',
     }
   }
 
@@ -100,11 +113,11 @@ export class AddExistingRepository extends React.Component<
     this.setState(state =>
       path === state.path
         ? {
-            isRepositoryBare,
-            isRepositoryUnsafe,
-            showNonGitRepositoryWarning,
-            repositoryUnsafePath,
-          }
+          isRepositoryBare,
+          isRepositoryUnsafe,
+          showNonGitRepositoryWarning,
+          repositoryUnsafePath,
+        }
         : null
     )
 
@@ -237,9 +250,43 @@ export class AddExistingRepository extends React.Component<
               placeholder="repository path"
               onValueChanged={this.onPathChanged}
               ariaDescribedBy="add-existing-repository-path-error"
+              disabled={this.state.useQueryForPathInstead}
+              readOnly={this.state.useQueryForPathInstead}
             />
-            <Button onClick={this.showFilePicker}>Choose…</Button>
+            <Button onClick={this.showFilePicker} disabled={this.state.useQueryForPathInstead}>Choose…</Button>
           </Row>
+          <Row>
+            <Checkbox
+              label="Use Query For Path"
+              value={this.state.useQueryForPathInstead ? CheckboxValue.On : CheckboxValue.Off}
+              onChange={this.onUseQueryForPathInsteadChanged}
+            />
+          </Row>
+          {(this.state.useQueryForPathInstead) && (
+            <>
+              <Row>
+                <TextBox
+                  ref={this.parentDirectoryPathTextBoxRef}
+                  value={this.state.parentDirectoryPath}
+                  label={__DARWIN__ ? 'Parent Directory Path' : 'Parent directory path'}
+                  placeholder="parent directory path"
+                  onValueChanged={this.onParentDirectoryPathChanged}
+                  ariaDescribedBy="add-parent-directory-path-error"
+                />
+                <Button onClick={this.showParentDirectoryFilePicker}>Choose…</Button>
+              </Row>
+              <Row>
+                <TextBox
+                  ref={this.queryForPathTextBoxRef}
+                  value={this.state.queryForPath}
+                  label={__DARWIN__ ? 'Query For Path' : 'Query for path'}
+                  placeholder="query for repository path"
+                  onValueChanged={this.onQueryForPathChanged}
+                  ariaDescribedBy="add-existing-query-for-repository-path-error"
+                />
+              </Row>
+            </>
+          )}
           {this.renderErrors()}
         </DialogContent>
 
@@ -258,6 +305,24 @@ export class AddExistingRepository extends React.Component<
     }
   }
 
+  private onUseQueryForPathInsteadChanged = (event: React.FormEvent<HTMLInputElement>) => {
+    const value = event.currentTarget.checked ? CheckboxValue.On : CheckboxValue.Off
+
+    this.setState({ useQueryForPathInstead: value === CheckboxValue.On })
+  }
+
+  private onParentDirectoryPathChanged = async (parentDirectoryPath: string) => {
+    if (this.state.parentDirectoryPath !== parentDirectoryPath) {
+      this.setState({ parentDirectoryPath })
+    }
+  }
+
+  private onQueryForPathChanged = async (queryForPath: string) => {
+    if (this.state.queryForPath !== queryForPath) {
+      this.setState({ queryForPath })
+    }
+  }
+
   private showFilePicker = async () => {
     const path = await showOpenDialog({
       properties: ['createDirectory', 'openDirectory'],
@@ -270,29 +335,111 @@ export class AddExistingRepository extends React.Component<
     this.updatePath(path)
   }
 
+  private showParentDirectoryFilePicker = async () => {
+    const path = await showOpenDialog({
+      properties: ['createDirectory', 'openDirectory'],
+    })
+
+    if (path === null) {
+      return
+    }
+
+    this.setState({ parentDirectoryPath: path })
+  }
+
   private resolvedPath(path: string): string {
     return Path.resolve('/', untildify(path))
   }
 
   private addRepository = async () => {
-    const { path } = this.state
-    const isValidPath = await this.validatePath(path)
+    const { path, parentDirectoryPath, queryForPath } = this.state
 
-    if (!isValidPath) {
-      this.pathTextBoxRef.current?.focus()
-      return
-    }
+    if (this.state.useQueryForPathInstead) {
+      const parentDirectoryPathIsValid = parentDirectoryPath.length > 0
+      const queryForPathIsValid = queryForPath.length > 0
 
-    this.props.onDismissed()
-    const { dispatcher } = this.props
+      if (!parentDirectoryPathIsValid) {
+        this.parentDirectoryPathTextBoxRef.current?.focus()
+        return
+      }
 
-    const resolvedPath = this.resolvedPath(path)
-    const repositories = await dispatcher.addRepositories([resolvedPath])
+      if (!queryForPathIsValid) {
+        this.queryForPathTextBoxRef.current?.focus()
+        return
+      }
 
-    if (repositories.length > 0) {
-      dispatcher.closeFoldout(FoldoutType.Repository)
-      dispatcher.selectRepository(repositories[0])
-      dispatcher.recordAddExistingRepository()
+      this.props.onDismissed()
+
+      // After validating the parent directory path and query for path, we should use the queryForPath to search for the directory under the parent folder. For now, assume the query is written in regex format and search for the first match.
+      const resolvedParentDirectoryPath = this.resolvedPath(parentDirectoryPath)
+
+      // Get a list of all pathnames in the parent directory
+      const pathModule = window.require('path')
+      const directories: string[] = []
+
+      try {
+        const files = await readdir(resolvedParentDirectoryPath)
+
+        for (const file of files) {
+          const fullPath = pathModule.join(resolvedParentDirectoryPath, file)
+          if (file === '.DS_Store' || file === '.git') {
+            continue
+          }
+
+          const fileStats = await stat(fullPath)
+
+          if (fileStats.isDirectory()
+            && file === queryForPath
+            && existsSync(fullPath + '/.git')) {
+            directories.push(file)
+            break
+          }
+        }
+      } catch (error) {
+        console.error('Error reading parent directory:', error)
+        return
+      }
+
+      if (directories.length === 0) {
+        // No directories matched the query
+        this.queryForPathTextBoxRef.current?.focus()
+        console.info('No directories matched the query')
+        return
+      }
+
+      const fullPath = pathModule.join(resolvedParentDirectoryPath, directories[0])
+
+      const resolvedFullPath = this.resolvedPath(fullPath)
+      const repositories = await this.props.dispatcher.addRepositories([resolvedFullPath], {
+        useQueryForPathInstead: true,
+        parentDirectoryPath: resolvedParentDirectoryPath,
+        queryForPath: queryForPath,
+      })
+
+      if (repositories.length > 0) {
+        this.props.dispatcher.closeFoldout(FoldoutType.Repository)
+        this.props.dispatcher.selectRepository(repositories[0])
+        this.props.dispatcher.recordAddExistingRepository()
+      }
+    } else {
+      const isValidPath = await this.validatePath(path)
+
+      if (!isValidPath) {
+        this.pathTextBoxRef.current?.focus()
+        return
+      }
+
+      this.props.onDismissed()
+      const { dispatcher } = this.props
+
+      const resolvedPath = this.resolvedPath(path)
+      const repositories = await dispatcher.addRepositories([resolvedPath])
+
+      if (repositories.length > 0) {
+        dispatcher.closeFoldout(FoldoutType.Repository)
+        dispatcher.selectRepository(repositories[0])
+        dispatcher.recordAddExistingRepository()
+      }
     }
   }
 

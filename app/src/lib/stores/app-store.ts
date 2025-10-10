@@ -6286,7 +6286,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   public async _addRepositories(
-    paths: ReadonlyArray<string>
+    paths: ReadonlyArray<string>,
+    settings?: {
+      useQueryForPathInstead: boolean
+      parentDirectoryPath: string
+      queryForPath: string
+    }
   ): Promise<ReadonlyArray<Repository>> {
     const addedRepositories = new Array<Repository>()
     const lfsRepositories = new Array<Repository>()
@@ -6301,6 +6306,9 @@ export class AppStore extends TypedBaseStore<IAppState> {
       if (repositoryType.kind === 'unsafe') {
         const repository = await this.repositoriesStore.addRepository(path, {
           missing: true,
+          useQueryForPathInstead: settings?.useQueryForPathInstead,
+          parentDirectoryPath: settings?.parentDirectoryPath,
+          queryForPath: settings?.queryForPath,
         })
 
         addedRepositories.push(repository)
@@ -6322,7 +6330,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
         }
 
         const addedRepo = await this.repositoriesStore.addRepository(
-          validatedPath
+          validatedPath,
+          {
+            useQueryForPathInstead: settings?.useQueryForPathInstead,
+            parentDirectoryPath: settings?.parentDirectoryPath,
+            queryForPath: settings?.queryForPath,
+          }
         )
 
         // initialize the remotes for this new repository to ensure it can fetch

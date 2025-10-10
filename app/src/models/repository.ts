@@ -53,6 +53,9 @@ export class Repository {
     public readonly missing: boolean,
     public readonly alias: string | null = null,
     public readonly workflowPreferences: WorkflowPreferences = {},
+    public readonly useQueryForPathInstead: boolean = false,
+    public readonly parentDirectoryPath: string = '',
+    public readonly queryForPath: string = '',
     /**
      * True if the repository is a tutorial repository created as part of the
      * onboarding flow. Tutorial repositories trigger a tutorial user experience
@@ -70,12 +73,23 @@ export class Repository {
       this.missing,
       this.alias,
       this.workflowPreferences.forkContributionTarget,
-      this.isTutorialRepository
+      this.isTutorialRepository,
+      this.useQueryForPathInstead,
+      this.parentDirectoryPath,
+      this.queryForPath
     )
   }
 
   public get path(): string {
     return this.mainWorkTree.path
+  }
+
+  public isUsingQueryForPath(): boolean {
+    return (
+      this.useQueryForPathInstead &&
+      this.parentDirectoryPath.length > 0 &&
+      this.queryForPath.length > 0
+    )
   }
 }
 
