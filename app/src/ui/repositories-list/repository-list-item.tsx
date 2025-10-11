@@ -52,7 +52,6 @@ export class RepositoryListItem extends React.Component<
 
     const classNameList = classNames('name', {
       alias: alias !== null,
-      query: repository instanceof Repository && repository.isUsingQueryForPath(),
     })
 
     return (
@@ -91,22 +90,6 @@ export class RepositoryListItem extends React.Component<
     const gitHubRepo = repo instanceof Repository ? repo.gitHubRepository : null
     const alias = repo instanceof Repository ? repo.alias : null
     const realName = gitHubRepo ? gitHubRepo.fullName : repo.name
-    const useQueryForPathInstead = repo instanceof Repository && repo.useQueryForPathInstead
-    const parentDirectoryPath = repo instanceof Repository ? repo.parentDirectoryPath : null
-    const queryForPath = repo instanceof Repository ? repo.queryForPath : null
-    if (useQueryForPathInstead && !!parentDirectoryPath && !!queryForPath) {
-      return (
-        <>
-          <div>
-            <strong>{realName}</strong>
-            {alias && <> ({alias})</>}
-          </div>
-          <div>Uses Query</div>
-          <div>Parent Directory: {parentDirectoryPath}</div>
-          <div>Query: {queryForPath}</div>
-        </>
-      )
-    }
 
     return (
       <>
