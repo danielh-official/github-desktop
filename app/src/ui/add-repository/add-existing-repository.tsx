@@ -17,8 +17,7 @@ import { Ref } from '../lib/ref'
 import { InputError } from '../lib/input-description/input-error'
 import { IAccessibleMessage } from '../../models/accessible-message'
 import { Checkbox, CheckboxValue } from '../lib/checkbox'
-import { readdir, stat } from 'fs/promises'
-import { existsSync } from 'fs'
+import { searchForRepository } from '../../lib/query'
 
 interface IAddExistingRepositoryProps {
   readonly dispatcher: Dispatcher
@@ -375,26 +374,13 @@ export class AddExistingRepository extends React.Component<
 
       // Get a list of all pathnames in the parent directory
       const pathModule = window.require('path')
-      const directories: string[] = []
+      let directories: string[] = []
 
       try {
-        const files = await readdir(resolvedParentDirectoryPath)
-
-        for (const file of files) {
-          const fullPath = pathModule.join(resolvedParentDirectoryPath, file)
-          if (file === '.DS_Store' || file === '.git') {
-            continue
-          }
-
-          const fileStats = await stat(fullPath)
-
-          if (fileStats.isDirectory()
-            && file === queryForPath
-            && existsSync(fullPath + '/.git')) {
-            directories.push(file)
-            break
-          }
-        }
+        directories = await searchForRepository(
+          parentDirectoryPath,
+          queryForPath
+        )
       } catch (error) {
         console.error('Error reading parent directory:', error)
         return

@@ -74,10 +74,24 @@ export class MissingRepository extends React.Component<
     const buttons = new Array<JSX.Element>()
     const { isPathUnsafe, unsafePath } = this.state
 
+    if (this.props.repository.isUsingQueryForPath()) {
+      buttons.push(
+        <Button key="refresh-query" onClick={this.refreshQuery} type="submit">
+          Refresh Query…
+        </Button>
+      )
+
+      buttons.push(
+        <Button key="edit-query" onClick={this.editQuery} type="submit">
+          Edit Query…
+        </Button>
+      )
+    }
+
     if (!isPathUnsafe) {
       buttons.push(
         <Button key="locate" onClick={this.locate} type="submit">
-          Locate…
+          {this.props.repository.isUsingQueryForPath() ? 'Use Local Path Instead' : 'Locate…'}
         </Button>
       )
 
@@ -133,6 +147,12 @@ export class MissingRepository extends React.Component<
       )
     }
 
+    // TODO: For queried repositories, we should indicate the query in use
+    // If I move the repository into a subdirectory of the parent folder, we should be able to find it again using the query
+    // To achieve this, the functionality should search recursively within all nested folders until it finds the directory that meets all the criteria
+    // Rather than summoning a file dialog to locate the repository, we should summon the dialog for querying the repository (should include the parent directory)
+    // This process can be intensive depending on how many directories there are in the parent folder, so we should consider making it asynchronous with a loading indicator
+
     return (
       <UiView id="missing-repository-view">
         <div className="title-container">
@@ -160,6 +180,14 @@ export class MissingRepository extends React.Component<
 
   private remove = () => {
     this.props.dispatcher.removeRepository(this.props.repository, false)
+  }
+
+  private refreshQuery = () => {
+    this.props.dispatcher.refreshQueryForRepository(this.props.repository)
+  }
+
+  private editQuery = () => {
+    this.props.dispatcher.editQueryForRepository(this.props.repository)
   }
 
   private locate = () => {

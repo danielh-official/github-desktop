@@ -126,6 +126,7 @@ import { ICustomIntegration } from '../../lib/custom-integration'
 import { isAbsolute } from 'path'
 import { CLIAction } from '../../lib/cli-action'
 import { BypassReasonType } from '../secret-scanning/bypass-push-protection-dialog'
+import { searchForRepository } from '../../lib/query'
 
 /**
  * An error handler function.
@@ -1663,6 +1664,38 @@ export class Dispatcher {
         this.errorHandlers.splice(i, 1)
       }
     })
+  }
+
+  /**
+   * If repository uses query, refresh the query for the repository to find the missing path.
+   */
+  public async refreshQueryForRepository(repository: Repository) {
+    if (repository.isUsingQueryForPath() === false) {
+      return
+    }
+
+    console.log('Refreshing query for repository:', repository)
+
+    const directories = await searchForRepository(
+      repository.parentDirectoryPath,
+      repository.queryForPath
+    )
+
+    if (directories.length === 0) {
+      log.info(
+        `No directories found matching query '${repository.queryForPath}' in '${repository.parentDirectoryPath}'`
+      )
+      return
+    }
+
+    await this.updateRepositoryPath(repository, directories[0])
+  }
+
+  /**
+   * If repository uses query, edit the parent directory and query for the repository.
+   */
+  public async editQueryForRepository(repository: Repository) {
+    // TODO: implement
   }
 
   /**
