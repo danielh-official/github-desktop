@@ -52,6 +52,7 @@ export class RepositoryListItem extends React.Component<
 
     const classNameList = classNames('name', {
       alias: alias !== null,
+      query: repository instanceof Repository && repository.isUsingQueryForPath(),
     })
 
     return (
