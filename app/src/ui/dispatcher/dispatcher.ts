@@ -23,6 +23,7 @@ import {
   MultiCommitOperationConflictState,
   IMultiCommitOperationState,
   CommitOptions,
+  IRepositoryListFilterState,
 } from '../../lib/app-state'
 import { assertNever, fatalError } from '../../lib/fatal-error'
 import {
@@ -295,6 +296,11 @@ export class Dispatcher {
   /** Set the repository filter text. */
   public setRepositoryFilterText(text: string): Promise<void> {
     return this.appStore._setRepositoryFilterText(text)
+  }
+
+  /** Set the active repository list filter options. */
+  public setRepositoryListFilter(filter: IRepositoryListFilterState) {
+    this.appStore._setRepositoryListFilter(filter)
   }
 
   /** Select the repository. */

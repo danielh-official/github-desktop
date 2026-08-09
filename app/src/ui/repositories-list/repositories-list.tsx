@@ -7,6 +7,9 @@ import {
   Repositoryish,
   RepositoryListGroup,
   getGroupKey,
+  matchesRepositoryFilter,
+  hasActiveRepositoryFilters,
+  countRepositoryFilterMatches,
 } from './group-repositories'
 import { IFilterListGroup } from '../lib/filter-list'
 import { IMatches } from '../../lib/fuzzy-find'
@@ -27,6 +30,11 @@ import { enableWorktreeSupport } from '../../lib/feature-flag'
 import { SectionFilterList } from '../lib/section-filter-list'
 import { assertNever } from '../../lib/fatal-error'
 import { IAheadBehind } from '../../models/branch'
+import {
+  IRepositoryListFilterState,
+  NoRepositoryListFilters,
+} from '../../lib/app-state'
+import { RepositoriesListFilterOptions } from './repositories-list-filter-options'
 
 const BlankSlateImage = encodePathAsUrl(__dirname, 'static/empty-no-repo.svg')
 
@@ -73,6 +81,21 @@ interface IRepositoriesListProps {
 
   /** The text entered by the user to filter their repository list */
   readonly filterText: string
+
+  /** The currently active repository list filter options */
+  readonly repositoryListFilter: IRepositoryListFilterState
+
+  /** The callback to fire when a filter option has been toggled */
+  readonly onRepositoryListFilterChanged: (
+    filter: IRepositoryListFilterState
+  ) => void
+
+  /**
+   * Whether the user has enabled the setting which periodically refreshes the
+   * status of all repositories. Without it we don't know which repositories
+   * have local changes so the filter options are not offered.
+   */
+  readonly repositoryIndicatorsEnabled: boolean
 
   readonly dispatcher: Dispatcher
 }
@@ -122,16 +145,35 @@ export class RepositoriesList extends React.Component<
     (
       repositories: ReadonlyArray<Repositoryish> | null,
       localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>,
-      recentRepositories: ReadonlyArray<number>
+      recentRepositories: ReadonlyArray<number>,
+      filter: IRepositoryListFilterState
     ) =>
       repositories === null
         ? []
         : groupRepositories(
-            repositories,
+            repositories.filter(r =>
+              matchesRepositoryFilter(
+                localRepositoryStateLookup.get(r.id),
+                filter
+              )
+            ),
             localRepositoryStateLookup,
             recentRepositories
           )
   )
+
+  private getFilterCounts = memoizeOne(countRepositoryFilterMatches)
+
+  /**
+   * The active filter, or no filter at all when repository indicators are
+   * disabled. Without indicators we have no idea which repositories have local
+   * changes, so a lingering filter would silently hide everything.
+   */
+  private get activeFilter(): IRepositoryListFilterState {
+    return this.props.repositoryIndicatorsEnabled
+      ? this.props.repositoryListFilter
+      : NoRepositoryListFilters
+  }
 
   /**
    * A memoized function for finding the selected list item based
@@ -325,7 +367,8 @@ export class RepositoriesList extends React.Component<
     const groups = this.getRepositoryGroups(
       this.props.repositories,
       this.props.localRepositoryStateLookup,
-      this.props.recentRepositories
+      this.props.recentRepositories,
+      this.activeFilter
     )
 
     // So there's two types of selection at play here. There's the repository
@@ -348,12 +391,14 @@ export class RepositoriesList extends React.Component<
           renderRowFocusTooltip={this.renderRowFocusTooltip}
           renderGroupHeader={this.renderGroupHeader}
           onItemClick={this.onItemClick}
+          renderPreFilter={this.renderPreFilter}
           renderPostFilter={this.renderPostFilter}
           renderNoItems={this.renderNoItems}
           groups={groups}
           invalidationProps={{
             repositories: this.props.repositories,
             filterText: this.props.filterText,
+            repositoryListFilter: this.activeFilter,
           }}
           onItemContextMenu={this.onItemContextMenu}
           getGroupAriaLabel={this.getGroupAriaLabelGetter(groups)}
@@ -366,6 +411,26 @@ export class RepositoriesList extends React.Component<
 
   private onSelectionChanged = (selectedItem: IRepositoryListItem | null) => {
     this.setState({ selectedItem })
+  }
+
+  private renderPreFilter = () => {
+    if (!this.props.repositoryIndicatorsEnabled) {
+      return null
+    }
+
+    const { uncommittedCount, unpushedCount } = this.getFilterCounts(
+      this.props.repositories,
+      this.props.localRepositoryStateLookup
+    )
+
+    return (
+      <RepositoriesListFilterOptions
+        repositoryListFilter={this.props.repositoryListFilter}
+        uncommittedCount={uncommittedCount}
+        unpushedCount={unpushedCount}
+        onFilterChanged={this.props.onRepositoryListFilterChanged}
+      />
+    )
   }
 
   private renderPostFilter = () => {
@@ -391,6 +456,26 @@ export class RepositoriesList extends React.Component<
   }
 
   private renderNoItems = () => {
+    const filter = this.activeFilter
+
+    if (hasActiveRepositoryFilters(filter)) {
+      const activeFilters = [
+        filter.hasUncommittedChanges ? 'Uncommitted changes' : null,
+        filter.hasUnpushedCommits ? 'Unpushed commits' : null,
+      ].filter((f): f is string => f !== null)
+
+      return (
+        <div className="no-items no-results-found">
+          <img src={BlankSlateImage} className="blankslate-image" alt="" />
+          <div className="title">
+            Sorry, I can't find any repositories matching the following filters:{' '}
+            {activeFilters.join(' and ')}
+          </div>
+          <Button onClick={this.onClearAllFilters}>Clear filters</Button>
+        </div>
+      )
+    }
+
     return (
       <div className="no-items no-results-found">
         <img src={BlankSlateImage} className="blankslate-image" alt="" />
@@ -412,6 +497,10 @@ export class RepositoriesList extends React.Component<
         </div>
       </div>
     )
+  }
+
+  private onClearAllFilters = () => {
+    this.props.onRepositoryListFilterChanged(NoRepositoryListFilters)
   }
 
   private onNewRepositoryButtonClick = () => {

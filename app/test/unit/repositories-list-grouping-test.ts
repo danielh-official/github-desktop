@@ -1,9 +1,15 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import { groupRepositories } from '../../src/ui/repositories-list/group-repositories'
+import {
+  groupRepositories,
+  matchesRepositoryFilter,
+  countRepositoryFilterMatches,
+  hasActiveRepositoryFilters,
+} from '../../src/ui/repositories-list/group-repositories'
 import { Repository, ILocalRepositoryState } from '../../src/models/repository'
 import { CloningRepository } from '../../src/models/cloning-repository'
 import { gitHubRepoFixture } from '../helpers/github-repo-builder'
+import { NoRepositoryListFilters } from '../../src/lib/app-state'
 
 describe('repository list grouping', () => {
   const repositories: Array<Repository | CloningRepository> = [
@@ -152,5 +158,104 @@ describe('repository list grouping', () => {
 
     assert.equal(grouped[2].items[1].text[0], 'enterprise-repo')
     assert(grouped[2].items[1].needsDisambiguation)
+  })
+})
+
+describe('repository list filtering', () => {
+  const clean: ILocalRepositoryState = {
+    aheadBehind: null,
+    changedFilesCount: 0,
+  }
+  const dirty: ILocalRepositoryState = {
+    aheadBehind: null,
+    changedFilesCount: 3,
+  }
+  const unpushed: ILocalRepositoryState = {
+    aheadBehind: { ahead: 2, behind: 0 },
+    changedFilesCount: 0,
+  }
+  const dirtyAndUnpushed: ILocalRepositoryState = {
+    aheadBehind: { ahead: 1, behind: 4 },
+    changedFilesCount: 1,
+  }
+  // Behind only, i.e. nothing of ours that isn't on the remote
+  const behind: ILocalRepositoryState = {
+    aheadBehind: { ahead: 0, behind: 5 },
+    changedFilesCount: 0,
+  }
+
+  const uncommittedOnly = {
+    hasUncommittedChanges: true,
+    hasUnpushedCommits: false,
+  }
+  const unpushedOnly = {
+    hasUncommittedChanges: false,
+    hasUnpushedCommits: true,
+  }
+  const bothFilters = {
+    hasUncommittedChanges: true,
+    hasUnpushedCommits: true,
+  }
+
+  it('knows when filters are active', () => {
+    assert(!hasActiveRepositoryFilters(NoRepositoryListFilters))
+    assert(hasActiveRepositoryFilters(uncommittedOnly))
+    assert(hasActiveRepositoryFilters(unpushedOnly))
+    assert(hasActiveRepositoryFilters(bothFilters))
+  })
+
+  it('matches everything when no filter is active', () => {
+    for (const state of [clean, dirty, unpushed, undefined]) {
+      assert(matchesRepositoryFilter(state, NoRepositoryListFilters))
+    }
+  })
+
+  it('filters on uncommitted changes', () => {
+    assert(matchesRepositoryFilter(dirty, uncommittedOnly))
+    assert(matchesRepositoryFilter(dirtyAndUnpushed, uncommittedOnly))
+    assert(!matchesRepositoryFilter(clean, uncommittedOnly))
+    assert(!matchesRepositoryFilter(unpushed, uncommittedOnly))
+  })
+
+  it('filters on unpushed commits, ignoring commits we are only behind by', () => {
+    assert(matchesRepositoryFilter(unpushed, unpushedOnly))
+    assert(matchesRepositoryFilter(dirtyAndUnpushed, unpushedOnly))
+    assert(!matchesRepositoryFilter(clean, unpushedOnly))
+    assert(!matchesRepositoryFilter(dirty, unpushedOnly))
+    assert(!matchesRepositoryFilter(behind, unpushedOnly))
+  })
+
+  it('combines both filters with AND, not OR', () => {
+    assert(matchesRepositoryFilter(dirtyAndUnpushed, bothFilters))
+    assert(!matchesRepositoryFilter(dirty, bothFilters))
+    assert(!matchesRepositoryFilter(unpushed, bothFilters))
+  })
+
+  it('excludes repositories with no known state while a filter is active', () => {
+    assert(!matchesRepositoryFilter(undefined, uncommittedOnly))
+    assert(!matchesRepositoryFilter(undefined, unpushedOnly))
+  })
+
+  it('counts the repositories matching each filter option', () => {
+    const repositories = [
+      new Repository('clean', 1, null, false),
+      new Repository('dirty', 2, null, false),
+      new Repository('unpushed', 3, null, false),
+      new Repository('both', 4, null, false),
+      // Absent from the lookup entirely
+      new CloningRepository('cloning', 'https://github.com/me/cloning'),
+    ]
+
+    const lookup = new Map<number, ILocalRepositoryState>([
+      [1, clean],
+      [2, dirty],
+      [3, unpushed],
+      [4, dirtyAndUnpushed],
+    ])
+
+    assert.deepStrictEqual(countRepositoryFilterMatches(repositories, lookup), {
+      uncommittedCount: 2,
+      unpushedCount: 2,
+    })
   })
 })

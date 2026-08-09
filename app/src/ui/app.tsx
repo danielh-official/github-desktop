@@ -9,6 +9,7 @@ import {
   SelectionType,
   HistoryTabMode,
   CommitOptions,
+  IRepositoryListFilterState,
 } from '../lib/app-state'
 import { Dispatcher } from './dispatcher'
 import { AppStore, GitHubUserStore, IssuesStore } from '../lib/stores'
@@ -3354,6 +3355,9 @@ export class App extends React.Component<IAppProps, IAppState> {
       <RepositoriesList
         filterText={filterText}
         onFilterTextChanged={this.onRepositoryFilterTextChanged}
+        repositoryListFilter={this.state.repositoryListFilter}
+        onRepositoryListFilterChanged={this.onRepositoryListFilterChanged}
+        repositoryIndicatorsEnabled={this.state.repositoryIndicatorsEnabled}
         selectedRepository={selectedRepository}
         onSelectionChanged={this.onSelectionChanged}
         repositories={repositories}
@@ -4061,6 +4065,12 @@ export class App extends React.Component<IAppProps, IAppState> {
 
   private onRepositoryFilterTextChanged = (text: string) => {
     this.props.dispatcher.setRepositoryFilterText(text)
+  }
+
+  private onRepositoryListFilterChanged = (
+    filter: IRepositoryListFilterState
+  ) => {
+    this.props.dispatcher.setRepositoryListFilter(filter)
   }
 
   private onSelectionChanged = (repository: Repository | CloningRepository) => {

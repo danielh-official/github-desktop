@@ -13,6 +13,7 @@ import { IAheadBehind } from '../../models/branch'
 import { assertNever } from '../../lib/fatal-error'
 import { isDotCom } from '../../lib/endpoint-capabilities'
 import { Owner } from '../../models/owner'
+import { IRepositoryListFilterState } from '../../lib/app-state'
 
 export type RepositoryListGroup =
   | {
@@ -56,6 +57,65 @@ export interface IRepositoryListItem extends IFilterListItem {
   readonly needsDisambiguation: boolean
   readonly aheadBehind: IAheadBehind | null
   readonly changedFilesCount: number
+}
+
+/** Are any of the repository list filter options active? */
+export const hasActiveRepositoryFilters = (
+  filter: IRepositoryListFilterState
+) => filter.hasUncommittedChanges || filter.hasUnpushedCommits
+
+/**
+ * Does the repository with the given local state satisfy _all_ of the active
+ * filter options?
+ *
+ * Note that repositories which aren't present in the local repository state
+ * lookup (repositories that are missing, whose path no longer exists, or which
+ * are still being cloned) can't satisfy any filter and will therefore be
+ * excluded whenever a filter is active.
+ */
+export function matchesRepositoryFilter(
+  state: ILocalRepositoryState | undefined,
+  filter: IRepositoryListFilterState
+): boolean {
+  if (!hasActiveRepositoryFilters(filter)) {
+    return true
+  }
+
+  if (filter.hasUncommittedChanges && (state?.changedFilesCount ?? 0) === 0) {
+    return false
+  }
+
+  if (filter.hasUnpushedCommits && (state?.aheadBehind?.ahead ?? 0) === 0) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Count how many of the given repositories match each of the filter options,
+ * used to annotate the filter option labels.
+ */
+export function countRepositoryFilterMatches(
+  repositories: ReadonlyArray<Repositoryish>,
+  localRepositoryStateLookup: ReadonlyMap<number, ILocalRepositoryState>
+) {
+  let uncommittedCount = 0
+  let unpushedCount = 0
+
+  for (const repository of repositories) {
+    const state = localRepositoryStateLookup.get(repository.id)
+
+    if ((state?.changedFilesCount ?? 0) > 0) {
+      uncommittedCount++
+    }
+
+    if ((state?.aheadBehind?.ahead ?? 0) > 0) {
+      unpushedCount++
+    }
+  }
+
+  return { uncommittedCount, unpushedCount }
 }
 
 const recentRepositoriesThreshold = 7

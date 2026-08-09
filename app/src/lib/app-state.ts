@@ -89,6 +89,24 @@ export type PossibleSelections =
     }
   | { type: SelectionType.MissingRepository; repository: Repository }
 
+/**
+ * State interface for the repository list filter options, i.e. the filters
+ * which narrow the repository list down to repositories with local changes.
+ */
+export interface IRepositoryListFilterState {
+  /** Whether to only show repositories with uncommitted changes */
+  readonly hasUncommittedChanges: boolean
+
+  /** Whether to only show repositories with commits that haven't been pushed */
+  readonly hasUnpushedCommits: boolean
+}
+
+/** The repository list filter state with no filters applied. */
+export const NoRepositoryListFilters: IRepositoryListFilterState = {
+  hasUncommittedChanges: false,
+  hasUnpushedCommits: false,
+}
+
 /** All of the shared app state. */
 export interface IAppState {
   readonly accounts: ReadonlyArray<Account>
@@ -307,6 +325,9 @@ export interface IAppState {
 
   /** The current repository filter text. */
   readonly repositoryFilterText: string
+
+  /** The currently active repository list filter options. */
+  readonly repositoryListFilter: IRepositoryListFilterState
 
   /** The currently selected tab for Clone Repository. */
   readonly selectedCloneRepositoryTab: CloneRepositoryTab

@@ -166,6 +166,8 @@ import {
   isRebaseConflictState,
   isCherryPickConflictState,
   IFileListFilterState,
+  IRepositoryListFilterState,
+  NoRepositoryListFilters,
   isMergeConflictState,
   IMultiCommitOperationState,
   ConflictState,
@@ -679,6 +681,10 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
   /** The current repository filter text */
   private repositoryFilterText: string = ''
+
+  /** The currently active repository list filter options */
+  private repositoryListFilter: IRepositoryListFilterState =
+    NoRepositoryListFilters
 
   private currentMergeTreePromise: Promise<void> | null = null
 
@@ -1316,6 +1322,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       showSideBySideDiff: this.showSideBySideDiff,
       selectedShell: this.selectedShell,
       repositoryFilterText: this.repositoryFilterText,
+      repositoryListFilter: this.repositoryListFilter,
       resolvedExternalEditor: this.resolvedExternalEditor,
       selectedCloneRepositoryTab: this.selectedCloneRepositoryTab,
       selectedBranchesTab: this.selectedBranchesTab,
@@ -2050,6 +2057,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
   /** This shouldn't be called directly. See `Dispatcher`. */
   public async _setRepositoryFilterText(text: string): Promise<void> {
     this.repositoryFilterText = text
+    this.emitUpdate()
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public _setRepositoryListFilter(filter: IRepositoryListFilterState) {
+    this.repositoryListFilter = filter
     this.emitUpdate()
   }
 
